@@ -49,7 +49,7 @@ class Meals {
 
   Meals.fromJson(Map<String, dynamic> json) {
 
-    for(int i = 1; i < 21; i++)
+    for(int i = 1; i < 20; i++)
     {
       if(json['strIngredient$i'] != null && json['strIngredient$i'].toString().isNotEmpty)
       {
@@ -74,7 +74,7 @@ class Meals {
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = new Map<String, dynamic>();
 
-    for(int i = 1; i < 21; i++)
+    for(int i = 1; i < 20; i++)
     {
       if(data['strIngredient$i'] != null && data['strIngredient$i'].toString().isNotEmpty)
       {

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:themealdb/ui/home_screen.dart';
+import 'ui/home.dart';
 
 void main() => runApp(MyApplication());
 

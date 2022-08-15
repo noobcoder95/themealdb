@@ -3,12 +3,12 @@ import '../model/item_model.dart';
 import '../bloc/meals_bloc.dart';
 import 'build_list.dart';
 
-class HomeScreen extends StatefulWidget {
+class DessertScreen extends StatefulWidget {
   @override
-  _HomeScreenState createState() => _HomeScreenState();
+  _DessertScreenState createState() => _DessertScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _DessertScreenState extends State<DessertScreen> {
   final bloc = MealsBloc();
 
   @override
@@ -26,14 +26,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('TheMealDB'),
-      ),
-      body: getFoodList(),
+      body: getDessertFood(),
     );
   }
 
-  getFoodList() {
+  getDessertFood() {
     return StreamBuilder(
       stream: bloc.allMeals,
       builder: (context, AsyncSnapshot<ItemModel> snapshot) {
