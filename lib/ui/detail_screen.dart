@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:themealdb/bloc/detail_bloc.dart';
 import 'package:themealdb/model/item_model.dart';
 import 'package:themealdb/resources/favorite_local_provider.dart';
@@ -21,6 +22,36 @@ class _DetailScreenState extends State<DetailScreen> {
   final bloc = DetailBloc();
   ItemModel? itemModel;
   bool _isFavorite = false;
+  InterstitialAd? _interstitialAd;
+  int _numInterstitialLoadAttempts = 0;
+  static final AdRequest request = AdRequest(
+    keywords: <String>['foo', 'bar'],
+    contentUrl: 'http://foo.com/bar.html',
+    nonPersonalizedAds: true,
+  );
+  final BannerAd myBanner = BannerAd(
+    adUnitId: 'ca-app-pub-7540836345366849/5968563544',
+    size: AdSize.banner,
+    request: AdRequest(),
+    listener: BannerAdListener(),
+  );
+  final AdSize adSize = AdSize(height: 60, width: 468);
+  final BannerAdListener listener = BannerAdListener(
+    // Called when an ad is successfully received.
+    onAdLoaded: (Ad ad) => print('Ad loaded.'),
+    // Called when an ad request failed.
+    onAdFailedToLoad: (Ad ad, LoadAdError error) {
+      // Dispose the ad here to free resources.
+      ad.dispose();
+      print('Ad failed to load: $error');
+    },
+    // Called when an ad opens an overlay that covers the screen.
+    onAdOpened: (Ad ad) => print('Ad opened.'),
+    // Called when an ad removes an overlay that covers the screen.
+    onAdClosed: (Ad ad) => print('Ad closed.'),
+    // Called when an impression occurs on the ad.
+    onAdImpression: (Ad ad) => print('Ad impression.'),
+  );
 
   @override
   void initState() {
@@ -29,6 +60,8 @@ class _DetailScreenState extends State<DetailScreen> {
      FavoriteLocalProvider.db.getFavoriteMealsById(widget.idMeal).then((value) {
       setState(() => _isFavorite = value != null);
     });
+    myBanner.load();
+    _createInterstitialAd();
   }
 
   @override
@@ -37,8 +70,54 @@ class _DetailScreenState extends State<DetailScreen> {
     super.dispose();
   }
 
+  void _createInterstitialAd() {
+    InterstitialAd.load(
+        adUnitId: 'ca-app-pub-7540836345366849/1637887559',
+        request: request,
+        adLoadCallback: InterstitialAdLoadCallback(
+          onAdLoaded: (InterstitialAd ad) {
+            print('$ad loaded');
+            _interstitialAd = ad;
+            _numInterstitialLoadAttempts = 0;
+            _interstitialAd!.setImmersiveMode(true);
+          },
+          onAdFailedToLoad: (LoadAdError error) {
+            print('InterstitialAd failed to load: $error.');
+            _numInterstitialLoadAttempts += 1;
+            _interstitialAd = null;
+            if (_numInterstitialLoadAttempts < 5) {
+              _createInterstitialAd();
+            }
+          },
+        ));
+  }
+
+  void _showInterstitialAd() {
+    if (_interstitialAd == null) {
+      print('Warning: attempt to show interstitial before loaded.');
+      return;
+    }
+    _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
+      onAdShowedFullScreenContent: (InterstitialAd ad) =>
+          print('ad onAdShowedFullScreenContent.'),
+      onAdDismissedFullScreenContent: (InterstitialAd ad) {
+        print('$ad onAdDismissedFullScreenContent.');
+        ad.dispose();
+        _createInterstitialAd();
+      },
+      onAdFailedToShowFullScreenContent: (InterstitialAd ad, AdError error) {
+        print('$ad onAdFailedToShowFullScreenContent: $error');
+        ad.dispose();
+        _createInterstitialAd();
+      },
+    );
+    _interstitialAd!.show();
+    _interstitialAd = null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final AdWidget adWidget = AdWidget(ad: myBanner);
     return Scaffold(
       body: NestedScrollView(
         headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
@@ -77,6 +156,12 @@ class _DetailScreenState extends State<DetailScreen> {
           ];
         },
         body: getDetailMeal(),
+      ),
+      bottomNavigationBar: Container(
+        alignment: Alignment.center,
+        child: adWidget,
+        width: MediaQuery.of(context).size.width,
+        height: myBanner.size.height.toDouble(),
       ),
     );
   }
@@ -162,6 +247,7 @@ Widget actionSaveorDelete(){
               setState(() => _isFavorite = false);
             }
           });
+          _showInterstitialAd();
          // showToast(context, "Remove from Favorite", duration: Toast.LENGTH_LONG, gravity: Toast.BOTTOM);
         },
         child: Padding(
@@ -185,6 +271,7 @@ Widget actionSaveorDelete(){
               setState(() => _isFavorite = true);
             }
           });
+          _showInterstitialAd();
           //showToast(context, "Add to Favorite", duration: Toast.LENGTH_LONG, gravity: Toast.BOTTOM);
         },
         child: Padding(

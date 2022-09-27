@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.fluttertest.themealdb">
+    package="com.noobcoder.themealdb">
 
     <!-- io.flutter.app.FlutterApplication is an android.app.Application that
          calls FlutterMain.startInitialization(this); in its onCreate method.
@@ -9,7 +9,10 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="@string/app_name"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/launcher_icon">
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-7540836345366849~9707949260"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"
