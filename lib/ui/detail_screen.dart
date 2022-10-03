@@ -1,8 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:themealdb/bloc/detail_bloc.dart';
 import 'package:themealdb/model/item_model.dart';
 import 'package:themealdb/resources/favorite_local_provider.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 class DetailScreen extends StatefulWidget {
   final String idMeal;
@@ -30,7 +33,7 @@ class _DetailScreenState extends State<DetailScreen> {
     nonPersonalizedAds: true,
   );
   final BannerAd myBanner = BannerAd(
-    adUnitId: 'ca-app-pub-7540836345366849/5968563544',
+    adUnitId: kDebugMode ? 'ca-app-pub-3940256099942544/6300978111' : 'ca-app-pub-7540836345366849/5968563544',
     size: AdSize.banner,
     request: AdRequest(),
     listener: BannerAdListener(),
@@ -53,12 +56,35 @@ class _DetailScreenState extends State<DetailScreen> {
     onAdImpression: (Ad ad) => print('Ad impression.'),
   );
 
+  YoutubePlayerController? ytController;
+  late PlayerState _playerState;
+  late YoutubeMetaData _videoMetaData;
+  bool _isPlayerReady = false;
+
   @override
   void initState() {
     super.initState();
     bloc.fetchDetailMeals(widget.idMeal);
-     FavoriteLocalProvider.db.getFavoriteMealsById(widget.idMeal).then((value) {
-      setState(() => _isFavorite = value != null);
+    FavoriteLocalProvider.db.getFavoriteMealsById(widget.idMeal).then((v) {
+      bloc.detailMeals.first.then((value) {
+        ytController = YoutubePlayerController(
+          initialVideoId: YoutubePlayer.convertUrlToId(value.meals.first.strYoutube ?? '') ?? '',
+          flags: const YoutubePlayerFlags(
+            mute: false,
+            autoPlay: true,
+            disableDragSeek: false,
+            loop: true,
+            forceHD: true,
+            enableCaption: true,
+          ),
+        )..addListener(ytListener);
+        _videoMetaData = const YoutubeMetaData();
+        _playerState = PlayerState.unknown;
+        setState(() {
+          _isFavorite = v != null;
+          itemModel = value;
+        });
+      });
     });
     myBanner.load();
     _createInterstitialAd();
@@ -67,12 +93,29 @@ class _DetailScreenState extends State<DetailScreen> {
   @override
   void dispose() {
     bloc.dispose();
+    ytController!.dispose();
     super.dispose();
+  }
+
+  @override
+  void deactivate() {
+    // Pauses video while navigating to next page.
+    ytController!.pause();
+    super.deactivate();
+  }
+
+  void ytListener() {
+    if (_isPlayerReady && mounted && !ytController!.value.isFullScreen) {
+      setState(() {
+        _playerState = ytController!.value.playerState;
+        _videoMetaData = ytController!.metadata;
+      });
+    }
   }
 
   void _createInterstitialAd() {
     InterstitialAd.load(
-        adUnitId: 'ca-app-pub-7540836345366849/1637887559',
+        adUnitId: kDebugMode ? 'ca-app-pub-3940256099942544/1033173712' : 'ca-app-pub-7540836345366849/1637887559',
         request: request,
         adLoadCallback: InterstitialAdLoadCallback(
           onAdLoaded: (InterstitialAd ad) {
@@ -118,7 +161,88 @@ class _DetailScreenState extends State<DetailScreen> {
   @override
   Widget build(BuildContext context) {
     final AdWidget adWidget = AdWidget(ad: myBanner);
-    return Scaffold(
+    return ytController != null ?
+    YoutubePlayerBuilder(
+      onExitFullScreen: () {
+        // The player forces portraitUp after exiting fullscreen. This overrides the behaviour.
+        SystemChrome.setEnabledSystemUIMode(
+            SystemUiMode.manual, overlays: [SystemUiOverlay.bottom, SystemUiOverlay.top]);
+      },
+      player: YoutubePlayer(
+        controller: ytController!,
+        showVideoProgressIndicator: true,
+        progressIndicatorColor: Colors.blueAccent,
+        topActions: <Widget>[
+          const SizedBox(width: 8.0),
+          Expanded(
+            child: Text(
+              ytController!.metadata.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18.0,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+          /*
+          IconButton(
+            icon: const Icon(
+              Icons.settings,
+              color: Colors.white,
+              size: 25.0,
+            ),
+            onPressed: () {
+              log('Settings Tapped!');
+            },
+          ),
+          */
+        ],
+        onReady: () {
+          _isPlayerReady = true;
+        },
+        onEnded: (data) {
+          //ytController.reload();
+        },
+      ),
+      builder: (context, player) => Scaffold(
+        appBar: AppBar(
+          title: Text(
+            widget.strMeal.toUpperCase(),
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 16.0,
+            ),
+          ),
+          centerTitle: true,
+          actions: [actionSaveorDelete()],
+        ),
+        body: SizedBox(
+          height: MediaQuery.of(context).size.height,
+          child: Column(
+            children: [
+              SizedBox(
+                width: MediaQuery.of(context).size.width,
+                child: player,
+              ),
+              Flexible(
+                child: SingleChildScrollView(
+                    child: detailMeals()
+                ),
+              )
+            ],
+          ),
+        ),
+        bottomNavigationBar: Container(
+          alignment: Alignment.center,
+          child: adWidget,
+          width: MediaQuery.of(context).size.width,
+          height: myBanner.size.height.toDouble(),
+        ),
+      ),
+    ) :
+    Scaffold(
       body: NestedScrollView(
         headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
           return <Widget>[
@@ -134,7 +258,7 @@ class _DetailScreenState extends State<DetailScreen> {
                 },
               ),
               actions: <Widget>[
-               actionSaveorDelete()
+                actionSaveorDelete()
               ],
               flexibleSpace: FlexibleSpaceBar(
                 centerTitle: true,
@@ -147,43 +271,22 @@ class _DetailScreenState extends State<DetailScreen> {
                   ),
                 ),
                 background: Hero(
-              tag: widget.strMeal,
-              child: Image.network(widget.strMealThumb,width: double.infinity,
-                          fit: BoxFit.cover),
-            ),
+                  tag: widget.strMeal,
+                  child: Image.network(widget.strMealThumb,width: double.infinity,
+                      fit: BoxFit.cover),
+                ),
               ),
             ),
           ];
         },
-        body: getDetailMeal(),
-      ),
-      bottomNavigationBar: Container(
-        alignment: Alignment.center,
-        child: adWidget,
-        width: MediaQuery.of(context).size.width,
-        height: myBanner.size.height.toDouble(),
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
       ),
     );
   }
 
-  getDetailMeal() {
-    return StreamBuilder(
-        stream: bloc.detailMeals,
-        builder: (context, AsyncSnapshot<ItemModel> snapshot) {
-          if (snapshot.hasData) {
-            itemModel = snapshot.data;
-            return _showListDetail(
-                itemModel!);
-          } else if (snapshot.hasError) {
-            return Text(snapshot.error.toString());
-          }
-          return Center(
-              child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.blue)));
-        });
-  }
-
-  Widget _showListDetail(ItemModel itemModel) {
+  Widget detailMeals() {
     return Container(
       padding: EdgeInsets.all(16.0),
       child: SingleChildScrollView(
@@ -197,7 +300,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      "Komposisi :",
+                      "Composition :",
                       style: TextStyle(
                           color: Colors.black,
                           fontSize: 16,
@@ -207,7 +310,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      itemModel.meals[0].strIngredients.join(', '),
+                      itemModel?.meals[0].strIngredients.join(', ') ?? '',
                       style: TextStyle(color: Colors.black),
                     ),
                   ),
@@ -215,7 +318,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      "Instruksi :",
+                      "Instruction :",
                       style: TextStyle(
                           color: Colors.black,
                           fontSize: 16,
@@ -225,7 +328,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      itemModel.meals[0].strInstructions ?? '',
+                      itemModel?.meals[0].strInstructions ?? '',
                       style: TextStyle(color: Colors.black),
                     ),
                   ),
@@ -238,7 +341,7 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-Widget actionSaveorDelete(){
+  Widget actionSaveorDelete(){
   if (_isFavorite) {
       return GestureDetector(
         onTap: () {

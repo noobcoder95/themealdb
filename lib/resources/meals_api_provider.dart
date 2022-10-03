@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:developer';
 import 'package:dio/dio.dart';
+import 'package:themealdb/model/list_category.dart';
 import '../model/item_model.dart';
 
 class MealsApiProvider {
@@ -17,10 +19,21 @@ class MealsApiProvider {
     }
   }
 
+  Future<ListCategory> fetchCategory() async{
+    Response response;
+    response = await client.get("$_baseUrl/categories.php");
+    if (response.statusCode == 200) {
+      return ListCategory.fromJson(response.data);
+    } else {
+      throw Exception('Failed to load list meals');
+    }
+  }
+
   Future<ItemModel> fetchDetail(String id) async {
     Response response;
     response = await client.get("$_baseUrl/lookup.php?i=$id");
     if (response.statusCode == 200) {
+      log(response.data.toString());
       return ItemModel.fromJson(response.data);
     } else {
       throw Exception('Failed to load detail meals');
